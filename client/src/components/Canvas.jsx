@@ -3,7 +3,7 @@ import ElementRenderer from './ElementRenderer';
 
 const RATIOS = { '16:9': 16/9, '9:16': 9/16, '1:1': 1 };
 
-export default function Canvas({ thumbnailUrl, elements, aspectRatio, selectedId, setSelectedId, updateElement, removeElement }) {
+export default function Canvas({ thumbnailUrl, elements, aspectRatio, selectedId, setSelectedId, updateElement, removeElement, overlay }) {
   const areaRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 450 });
 
@@ -49,6 +49,20 @@ export default function Canvas({ thumbnailUrl, elements, aspectRatio, selectedId
           <div className="canvas-placeholder">
             <p style={{ opacity: 0.5 }}>Upload a thumbnail to begin</p>
           </div>
+        )}
+        
+        {/* Global Overlay */}
+        {overlay?.enabled && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(to bottom, transparent, ${overlay.color})`,
+              opacity: overlay.opacity,
+              pointerEvents: 'none',
+              zIndex: 5,
+            }}
+          />
         )}
 
         {/* Elements */}

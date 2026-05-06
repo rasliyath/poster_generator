@@ -33,7 +33,14 @@ export default function App() {
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [selectedId, setSelectedId] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [overlay, setOverlay] = useState({ enabled: false, color: '#000000', opacity: 0.5 });
   const [resultImage, setResultImage] = useState(null);
+  const [history, setHistory] = useState(() => {
+    const saved = localStorage.getItem('poster_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [view, setView] = useState('editor'); // 'editor' | 'gallery'
+  const [galleryFilter, setGalleryFilter] = useState('all');
   const thumbRef = useRef(null);
 
   const updateElement = (id, changes) =>
@@ -79,13 +86,54 @@ export default function App() {
     e.target.value = '';
   };
 
+  const loadPoster = (item) => {
+    if (!item.config) return;
+    setThumbnailUrl(item.config.thumbnailUrl);
+    setElements(item.config.elements);
+    setAspectRatio(item.config.aspectRatio);
+    setOverlay(item.config.overlay || { enabled: false, color: '#000000', opacity: 0.5 });
+    setView('editor');
+  };
+
+  const downloadFormat = async (item, ratio) => {
+    if (!item.config) return;
+    setIsGenerating(true);
+    try {
+      const dataUrl = await generatePosterOnCanvas(
+        item.config.thumbnailUrl, 
+        item.config.elements, 
+        ratio, 
+        item.config.overlay
+      );
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `poster-${ratio.replace(':', '-')}.jpg`;
+      link.click();
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to generate format: ' + err.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // ─── Pure client-side canvas export — no server needed ────────────────────
   const generatePoster = async () => {
     if (!thumbnailUrl) { alert('Please upload a thumbnail first.'); return; }
     setIsGenerating(true);
     try {
-      const dataUrl = await generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio);
+      const dataUrl = await generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio, overlay);
       setResultImage(dataUrl);
+      
+      const item = { 
+        id: Date.now(), 
+        previewUrl: dataUrl, // Small preview for gallery
+        config: { thumbnailUrl, elements, overlay, aspectRatio } 
+      };
+      
+      const newHistory = [item, ...history].slice(0, 12); // Reduced count to stay within localStorage limits
+      setHistory(newHistory);
+      localStorage.setItem('poster_history', JSON.stringify(newHistory));
     } catch (err) {
       console.error('Export failed:', err);
       alert('Failed to generate poster: ' + err.message);
@@ -106,28 +154,121 @@ export default function App() {
         addImage={addImage}
         updateElement={updateElement}
         removeElement={removeElement}
+        overlay={overlay}
+        setOverlay={setOverlay}
       />
 
       <div className="main-content">
         <div className="toolbar">
-          <label className="btn btn-secondary" style={{ margin: 0, cursor: 'pointer' }}>
-            <Upload size={17} /> Upload Thumbnail
-            <input ref={thumbRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
-          </label>
-          <button className="btn btn-primary" onClick={generatePoster} disabled={isGenerating || !thumbnailUrl}>
-            {isGenerating ? 'Rendering…' : <><Wand2 size={17} /> Generate Poster</>}
-          </button>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button className={`btn ${view === 'editor' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('editor')}>
+              Editor
+            </button>
+            <button className={`btn ${view === 'gallery' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('gallery')}>
+              Gallery ({history.length})
+            </button>
+          </div>
+          
+          {view === 'editor' && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <label className="btn btn-secondary" style={{ margin: 0, cursor: 'pointer' }}>
+                <Upload size={17} /> Upload Thumbnail
+                <input ref={thumbRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
+              </label>
+              <button className="btn btn-primary" onClick={generatePoster} disabled={isGenerating || !thumbnailUrl}>
+                {isGenerating ? 'Rendering…' : <><Wand2 size={17} /> Generate Poster</>}
+              </button>
+            </div>
+          )}
         </div>
 
-        <Canvas
-          thumbnailUrl={thumbnailUrl}
-          elements={elements}
-          aspectRatio={aspectRatio}
-          selectedId={selectedId}
-          setSelectedId={setSelectedId}
-          updateElement={updateElement}
-          removeElement={removeElement}
-        />
+        {view === 'editor' ? (
+          <Canvas
+            thumbnailUrl={thumbnailUrl}
+            elements={elements}
+            aspectRatio={aspectRatio}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            updateElement={updateElement}
+            removeElement={removeElement}
+            overlay={overlay}
+          />
+        ) : (
+          <div className="gallery-container">
+            <div className="gallery-header">
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['all', '16:9', '9:16', '1:1'].map(f => (
+                  <button 
+                    key={f} 
+                    className={`btn ${galleryFilter === f ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '6px 12px', fontSize: '0.75rem', textTransform: 'uppercase' }}
+                    onClick={() => setGalleryFilter(f)}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                Showing {galleryFilter === 'all' ? 'All' : galleryFilter} Posters
+              </p>
+            </div>
+
+            {history.filter(h => galleryFilter === 'all' || (h.ratio || '16:9') === galleryFilter).length === 0 ? (
+              <div className="canvas-placeholder" style={{ height: '300px' }}>
+                <p style={{ opacity: 0.5 }}>No posters found for this format</p>
+              </div>
+            ) : (
+              <div className="gallery-grid">
+                {history
+                  .filter(h => galleryFilter === 'all' || (h.config?.aspectRatio || h.ratio || '16:9') === galleryFilter)
+                  .map((item, i) => {
+                    const isOld = typeof item === 'string' || !item.config;
+                    const url = isOld ? (typeof item === 'string' ? item : item.url) : item.previewUrl;
+                    const ratio = isOld ? (typeof item === 'string' ? '16:9' : (item.ratio || '16:9')) : item.config.aspectRatio;
+                    
+                    return (
+                      <div key={item.id || i} className={`gallery-item ratio-${ratio.replace(':', '-')}`}>
+                        <img src={url} alt={`poster-${i}`} />
+                        <div className="gallery-item-overlay">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', width: '100%', padding: '0 12px' }}>
+                            <button className="btn btn-primary" style={{ width: '100%', padding: '6px' }} onClick={() => setResultImage(url)}>
+                              Preview
+                            </button>
+                            {!isOld && (
+                              <>
+                                <button className="btn btn-secondary" style={{ width: '100%', padding: '6px', fontSize: '0.75rem' }} onClick={() => loadPoster(item)}>
+                                  Edit Poster
+                                </button>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, width: '100%', marginTop: 4 }}>
+                                  {['16:9', '9:16', '1:1'].map(r => (
+                                    <button 
+                                      key={r} 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '4px 0', fontSize: '0.65rem' }}
+                                      onClick={() => downloadFormat(item, r)}
+                                      title={`Download ${r}`}
+                                    >
+                                      {r}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                            {isOld && (
+                              <a href={url} download={`poster-${i}.jpg`} className="btn btn-secondary" style={{ width: '100%', padding: '6px' }}>
+                                Download
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                        <div className="ratio-tag">{ratio}</div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {resultImage && (
@@ -138,9 +279,14 @@ export default function App() {
               <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setResultImage(null)}>Close</button>
             </div>
             <img src={resultImage} className="result-img" alt="poster" />
-            <a href={resultImage} download="poster.jpg" className="btn btn-primary" style={{ marginTop: 16, alignSelf: 'center', textDecoration: 'none' }}>
-              <Download size={17} /> Download
-            </a>
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, alignSelf: 'center' }}>
+              <a href={resultImage} download="poster.jpg" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+                <Download size={17} /> Download
+              </a>
+              <button className="btn btn-secondary" onClick={() => { setView('gallery'); setResultImage(null); }}>
+                Go to Gallery
+              </button>
+            </div>
           </div>
         </div>
       )}

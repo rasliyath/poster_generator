@@ -39,6 +39,14 @@ function getTextBgStyle(textBg) {
       border: `2px solid ${color}`,
       boxShadow: `0 0 8px ${color}, 0 0 20px ${color}80`,
     };
+  if (style === 'strip')
+    return {
+      ...base,
+      background: `${color}${a}`,
+      borderTop: `2px solid rgba(255,255,255,0.8)`,
+      borderBottom: `2px solid rgba(255,255,255,0.8)`,
+      borderRadius: '0px',
+    };
   return { ...base, background: `${color}${a}` };
 }
 

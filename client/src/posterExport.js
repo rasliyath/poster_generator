@@ -78,7 +78,7 @@ function drawRoundRect(ctx, x, y, w, h, r) {
  * @param {string} aspectRatio   '16:9' | '9:16' | '1:1'
  * @returns {Promise<string>}    JPEG data-URL of the final poster
  */
-export async function generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio) {
+export async function generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio, overlay) {
     const SIZES = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] };
     const [TW, TH] = SIZES[aspectRatio] || [1920, 1080];
 
@@ -100,6 +100,17 @@ export async function generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio
         sx = 0; sy = (bg.height - sh) / 2;
     }
     ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, TW, TH);
+    
+    // ── 1.5. Global Overlay ────────────────────────────────────────────────────
+    if (overlay?.enabled) {
+        ctx.save();
+        const grad = ctx.createLinearGradient(0, 0, 0, TH);
+        grad.addColorStop(0.3, 'transparent');
+        grad.addColorStop(1, hexToRgba(overlay.color, overlay.opacity));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, TW, TH);
+        ctx.restore();
+    }
 
     // ── 2. Elements ────────────────────────────────────────────────────────────
     for (const el of elements) {
@@ -193,6 +204,19 @@ export async function generatePosterOnCanvas(thumbnailUrl, elements, aspectRatio
                 ctx.shadowBlur = 10;
                 ctx.stroke();
                 ctx.shadowBlur = 0;
+            } else if (sty === 'strip') {
+                ctx.fillStyle = hexToRgba(bgC, op);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(boxL, boxT);
+                ctx.lineTo(boxL + renderedW, boxT);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(boxL, boxT + renderedH);
+                ctx.lineTo(boxL + renderedW, boxT + renderedH);
+                ctx.stroke();
             } else {
                 // solid / glassmorphism
                 ctx.fillStyle = hexToRgba(bgC, op);

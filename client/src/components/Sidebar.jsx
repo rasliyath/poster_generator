@@ -2,9 +2,9 @@ import React, { useRef } from 'react';
 import { Type, Image as ImgIcon, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Monitor, Smartphone, Square, Plus, Trash2 } from 'lucide-react';
 
 const FONTS = ['Outfit', 'Roboto', 'Playfair Display', 'Montserrat', 'Oswald'];
-const BG_STYLES = ['solid', 'gradient', 'glassmorphism', 'neon'];
+const BG_STYLES = ['solid', 'gradient', 'glassmorphism', 'neon', 'strip'];
 
-export default function Sidebar({ elements, selectedId, setSelectedId, aspectRatio, setAspectRatio, addText, addImage, updateElement, removeElement }) {
+export default function Sidebar({ elements, selectedId, setSelectedId, aspectRatio, setAspectRatio, addText, addImage, updateElement, removeElement, overlay, setOverlay }) {
   const fileRef = useRef(null);
   const selectedEl = elements.find(e => e.id === selectedId);
 
@@ -82,6 +82,31 @@ export default function Sidebar({ elements, selectedId, setSelectedId, aspectRat
             </div>
           </div>
         )}
+
+        {/* Global Overlay */}
+        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div className="input-label" style={{ marginBottom: 0 }}>Global Overlay</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={overlay.enabled} onChange={(e) => setOverlay({ ...overlay, enabled: e.target.checked })} />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Enable</span>
+            </label>
+          </div>
+          {overlay.enabled && (
+            <>
+              <div className="input-group">
+                <label className="input-label">Overlay Color</label>
+                <input type="color" value={overlay.color} onChange={(e) => setOverlay({ ...overlay, color: e.target.value })}
+                  style={{ width: '100%', height: 36, cursor: 'pointer', border: 'none', background: 'none', borderRadius: 8 }} />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Opacity</label>
+                <input type="range" min={0} max={1} step={0.05} value={overlay.opacity} onChange={(e) => setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })}
+                  style={{ width: '100%' }} />
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Properties */}
         {selectedEl && (
