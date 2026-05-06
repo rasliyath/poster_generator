@@ -623,6 +623,18 @@ export default function App() {
                                 Edit Poster
                               </button>
                             )}
+                            <button
+                              className="btn btn-danger"
+                              style={{ width: '100%', padding: '7px', fontSize: '0.75rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newHistory = history.filter((h) => h !== item);
+                                setHistory(newHistory);
+                                try { localStorage.setItem('poster_history', JSON.stringify(newHistory)); } catch { /* quota */ }
+                              }}
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
                         <div className="ratio-tag">{ratio}</div>
